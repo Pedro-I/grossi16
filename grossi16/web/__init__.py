@@ -57,6 +57,11 @@ def student_page():
 def teacher_page():
     return templater("teacher.html")
 
+@webapp.route("/teacher/login", methods=['POST'])
+def teacher_login():
+    if "grossi" == "grossi":
+        return templater("teacher_input.html")
+
 @webapp.route("/ajax/<command>")
 def ajax_cmd(command):
     return command
