@@ -57,10 +57,13 @@ def student_page():
 def teacher_page():
     return templater("teacher.html")
 
-@webapp.route("/teacher/login", methods=['POST'])
+@webapp.route("/teacher/login", methods=['GET', 'POST'])
 def teacher_login():
-    if "grossi" == "grossi":
-        return templater("teacher_input.html")
+    #if request.method == 'POST':
+    for a in request.form['pass']:
+        print(a)
+
+    #else: return "Método GET não suportado para login."
 
 @webapp.route("/ajax/<command>")
 def ajax_cmd(command):
