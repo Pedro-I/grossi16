@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Grossi16</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="/static/normalize.css">
+  <link rel="stylesheet" href="/static/skeleton.css">
+  <link rel="stylesheet" href="/static/fonts.css">
+  <link rel="stylesheet" href="/static/custom.css">
+
+  <link rel="icon" type="image/png" href="static/favicon.png">
+</head>
+<body>
+  <div class="container first-container">
+    <div class="row">
+      <h3 class="section-heading">Grossi16 - Ambiente do professor</h3>
+    </div>
+    
+    <div class="row">
+      <h4 class="section-heading">Questão</h3>
+    </div>
+
+    <form action="/teacher/update_questions" method="POST">
+      <div class="row vcenter" style="width:100%">
+        <div class="two columns vcenter">
+          <p>Enunciado da questão:</p>
+        </div>
+        <div class="one columns vcenter"></div>
+        <div class="four columns vcenter">
+          <input style="width:100%" type="text" id="question_text"/>
+        </div>
+      </div>
+      
+      <div class="row vcenter">
+        <div class="two columns vcenter">
+          <p>Respostas possíveis, separadas por linhas em branco:</p>
+        </div>
+        <div class="one columns vcenter"></div>
+        <div class="four columns vcenter">
+          <textarea id="answers"></textarea>
+        </div>
+      </div>
+
+      <div class="row vcenter">
+        <input type="submit" value="Salvar e Apagar respostas dos alunos" class="button-primary"/>
+      </div>
+      <div class="row vcenter">
+        <input type="submit" value="Salvar e Manter respostas dos alunos"/>
+      </div>
+    </form>
+
+    <div class="row">
+      <div class="seven columns">
+        <p>Você pode usar markdown para formatação: <i>*itálico*</i>, <b>**negrito**</b>, <b><i>***negrito itálico***</i></b>, <a href="http://a.com">[Link](http://a.com)</a>, <code>`código`</code>.</p>
+      </div>
+    </div>
+
+    <div class="row">
+      <h4 class="section-heading">Resultados</h3>
+    </div>
+
+    <div class="row">
+      <a class="button button-primary" href="#">Imprimir</a>
+      <a class="button" href="#">Salvar (em JSON)</a>
+      <a class="button" href="/teacher/logout">Sair</a>
+    </div>
+  </div>
+</body>

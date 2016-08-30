@@ -3,26 +3,35 @@
 __author__ = "Gabriel Queiroz"
 __credits__ = ["Gabriel Queiroz", "Estevão Lobo", "Pedro Ilído"]
 __license__ = "MIT"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __maintainer__ = "Gabriel Queiroz"
 __email__ = "gabrieljvnq@gmail.com"
-__status__ = "Pre-alpha"
+__status__ = "alpha"
 
-import click
-import logging
+import io
 import flask
+import logging
 import tempfile
+import builtins
+import datetime
 import pkg_resources
 
-NoCache = True
+UseCache = True
+ServerStart = None
+TeacherPasswd = None
 
 # WEB PART
 FilesCache = {}
 webapp = flask.Flask("Grossi16")
 
 def templater(name, **kwargs):
-    tempfile_src = pkg_resources.resource_string("grossi16.web", "templates/"+name)
-    print(kwargs)
+    if UseCache == True and "templates/"+name in FilesCache:
+        tempfile_src = FilesCache["templates/"+name]
+    else:
+        tempfile_src = pkg_resources.resource_string("grossi16.web", "templates/"+name)
+        if UseCache and "templates/"+name not in FilesCache:
+            FilesCache["templates/"+name] = tempfile_src
+            print("Added to cache: "+"templates/"+name)
     return flask.render_template_string(
         str(tempfile_src, encoding="utf-8"),
         **kwargs)
@@ -55,74 +64,117 @@ def student_page():
 
 @webapp.route("/teacher")
 def teacher_page():
-    return templater("teacher.html")
+    if is_teacher_logged_in():
+        return flask.redirect("/teacher/dashboard")
+    else:
+        return flask.redirect("/teacher/login")
 
-@webapp.route("/teacher/login", methods=['GET', 'POST'])
-def teacher_login():
-    #if request.method == 'POST':
-    for a in request.form['pass']:
-        print(a)
+def is_teacher_logged_in():
+    return TeacherPasswd == flask.request.cookies.get('passwd')
 
-    #else: return "Método GET não suportado para login."
+@webapp.route("/teacher/login", methods=["GET", "POST"])
+def teacher_login_page():
+    if is_teacher_logged_in():
+        return flask.redirect("/teacher/dashboard")
 
-@webapp.route("/ajax/<command>")
-def ajax_cmd(command):
-    return command
+    if flask.request.method == "POST":
+        # Store password in cookie
+        resp = flask.Response()
+        resp.set_cookie('passwd', flask.request.form["passwd"])
+
+        # Check if password is correct
+        if flask.request.form["passwd"] == TeacherPasswd:
+            #resp.set_data(flask.redirect("/teacher/dashboard"))
+            resp.headers['Location'] = "/teacher/dashboard"
+            resp.status_code = 302
+            resp.status = "Found"
+            return resp, 302
+
+        # Ask user to retry loging in
+        resp.set_data(templater("teacher_login.html", failed_once=True))
+        return resp
+
+    # Check if user has already tried to log in
+    if flask.request.cookies.get("passwd") != "":
+        return templater("teacher_login.html", failed_once=True)
+    else:
+        return templater("teacher_login.html")
+
+@webapp.route("/teacher/logout", methods=["GET", "POST"])
+def teacher_logout():
+    # Store password in cookie
+    resp = flask.Response()
+    resp.set_cookie("passwd", "")
+    resp.headers['Location'] = "/"
+    resp.status_code = 302
+    resp.status = "Found"
+    return resp, 302
+
+@webapp.route("/teacher/dashboard", methods=["GET", "POST"])
+def teacher_dashboard_page():
+    # Check if user has logged in
+    if not is_teacher_logged_in():
+        return flask.redirect("/teacher/login")
+
+    # Show dashboard
+    return templater("teacher_dashboard.html")
 
 @webapp.errorhandler(404)
-def page_not_found(error):
+def err404(error):
     return templater("404.html"), 404
+
+@webapp.errorhandler(500)
+def err500(error):
+    return templater("500.html"), 500
 
 @webapp.route("/static/<path>")
 def static_handler(path):
-    if NoCache == True:
-        data = pkg_resources.resource_string("grossi16.web", "static/"+path)
-        mime = get_mime_from_extension(path)
-        return data, 200, {'Content-Type': mime+'; charset=utf-8'}
-    elif NoCache == False and path in FilesCache:
-        data = FilesCache[path]
-        mime = get_mime_from_extension(path)
-        return data, 200, {'Content-Type': mime+'; charset=utf-8'}
+    if UseCache == True and path in FilesCache:
+        data = FilesCache["static/"+path]
+        mime = get_mime_from_extension("static/"+path)
     else:
-        abort(404)
+        try:
+            data = pkg_resources.resource_string("grossi16.web", "static/"+path)
+            mime = get_mime_from_extension(path)
+        except builtins.FileNotFoundError as e:
+            flask.abort(404)
+
+        if UseCache == True and "static/"+path not in FilesCache:
+            FilesCache["static/"+path] = data
+            print("Added to cache: "+"static/"+path)
+        
+    return flask.send_file(io.BytesIO(data), mimetype=mime, conditional=False, add_etags=False)
 
 # CLI PART
 
-@click.command()
-@click.option(
-    '--port',
-    '-p',
-    default=8080,
-    type=click.IntRange(0, 65535),
-    help='Port in which the web server will listen to'
-)
-@click.option(
-    '--bind-address',
-    'addr',
-    '-a',
-    default="0.0.0.0",
-    help='Address in which to bind the web server. Leave the default if you do not know what you are doing!'
-)
-@click.option(
-    '--code',
-    '-c',
-    default="1234",
-    type=click.IntRange(0, 65535),
-    help="Teacher's console password"
-)
-def main(addr, port, code):
+def main(addr, port, code, debug_mode, threads_flag):
     # Load files in memory
-    global FilesCache
-    if NoCache == False:
+    global FilesCache, ServerStart, UseCache, TeacherPasswd
+
+    TeacherPasswd = str(code)
+    ServerStart = datetime.datetime.now()
+    UseCache = not debug_mode
+
+    if UseCache == True:
         print("Loading files...")
-        for name in pkg_resources.resource_listdir("grossi16.web", "static"):
-            print("Loading "+name+"...")
-            FilesCache[name] = pkg_resources.resource_string("grossi16.web", "static/"+name)
-        print("Files loaded!")
+        try:
+            for path in ["static/", "templates/"]:
+                print(path)
+                for name in pkg_resources.resource_listdir("grossi16.web", path):
+                    print("Loading "+path+name+"...")
+                    FilesCache[path+name] = pkg_resources.resource_string("grossi16.web", path+name)
+            print("Files loaded!")
+        except Exception as e:
+            print("Failed to pre load files: "+str(e))
 
     # Start webserver
     print("Starting webserver")
-    webapp.run(host=addr, port=port)
-
-if __name__ == "__main__":
-    main()
+    print("Options in use: "+str({
+        "host": addr,
+        "port": port,
+        "threaded": threads_flag,
+        "debug": debug_mode,
+        "UseCache": UseCache,
+        "TeacherPasswd": TeacherPasswd
+    }))
+    webapp.run(host=addr, port=port, threaded=threads_flag, debug=debug_mode)
